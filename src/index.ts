@@ -1,12 +1,14 @@
+import { cpus } from "node:os";
 import readline from "node:readline";
-import chalk from "chalk";
 import arg from "arg";
+import chalk from "chalk";
+import { releaseProxy } from "comlink";
 import words from "../words.json";
-import { highlight, read, ResponseType } from "./repl.js";
+import { highlight, read, ResponseLine, ResponseType } from "./repl.js";
 import { MAX_TURNS } from "./constants.js";
 import { start } from "./game.js";
 import { baseLogger } from "./logger.js";
-import { GuessResult } from "./guess";
+import { GuessResult, prepareWorkerPool } from "./guess.js";
 
 const debug = baseLogger.extend("app");
 
@@ -47,10 +49,12 @@ const rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout,
 });
+const workerPool = prepareWorkerPool(cpus().length - 1);
 
 start({
   maxTurns: MAX_TURNS,
   words,
+  workerPool,
   getResponse: cliOptions["--emulate"] ? emulate : repl,
 })
   .then((result) => {
@@ -64,4 +68,5 @@ start({
   })
   .finally(() => {
     rl.close();
+    workerPool.forEach((worker) => worker[releaseProxy]());
   });

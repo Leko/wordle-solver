@@ -1,7 +1,11 @@
-import { ResponseLine, Responses, ResponseType } from "./repl.js";
+import path from "node:path";
+import { Worker } from "node:worker_threads";
+import * as Comlink from "comlink";
+import nodeAdapter from "comlink/dist/esm/node-adapter.mjs";
+import { Responses } from "./repl.js";
 import { createFilter } from "./filter.js";
-import { WORD_LENGTH } from "./constants.js";
 import { baseLogger } from "./logger.js";
+import type { evaluate } from "./guess.worker.js";
 
 const debug = baseLogger.extend("guess");
 
@@ -9,32 +13,20 @@ export type GuessResult = {
   word: string;
   confidence: number; // 0-1
 };
+export type WorkerPool = Comlink.Remote<{ evaluate: typeof evaluate }>[];
 
-function getPossibleResponses(
-  word: string,
-  history: Responses
-): ResponseLine[] {
-  const types =
-    history.length === 0
-      ? [ResponseType.Wrong, ResponseType.WrongSpot]
-      : Object.values(ResponseType);
-  const result: ResponseLine[] = [];
-  const open: ResponseLine[] = types.map((type) => [{ type, char: word[0] }]);
-  while (open.length !== 0) {
-    const node = open.pop()!;
-    if (node.length === WORD_LENGTH) {
-      result.push(node);
-      continue;
-    }
-    const char = word[node.length];
-    open.push(...types.map((type) => node.concat([{ type, char }])));
-  }
-  return result;
+export function prepareWorkerPool(size: number): WorkerPool {
+  return Array.from(new Array(size), () => {
+    const __dirname = path.dirname(new URL(import.meta.url).pathname);
+    const worker = new Worker(path.join(__dirname, "guess.worker.js"));
+    return Comlink.wrap(nodeAdapter(worker));
+  });
 }
 
 export async function guess(
   history: Responses,
-  words: string[]
+  words: string[],
+  workerPool: WorkerPool
 ): Promise<GuessResult> {
   const candidates = words.filter(createFilter(history));
   if (candidates.length === 1) {
@@ -47,41 +39,34 @@ export async function guess(
   const selectedWords = new Set(
     history.map((h) => h.reduce((a, c) => a + c.char, ""))
   );
-  const choosableWords = words.filter((word) => !selectedWords.has(word));
-  const sorted = choosableWords
-    .map((word) => {
-      const scores = getPossibleResponses(word, history)
-        .map((res) => {
-          const score = candidates.filter(
-            createFilter(history.concat([res]))
-          ).length;
-          if (score === 0) {
-            return { possibility: 0, score: -1 };
-          }
-          return {
-            possibility: score / candidates.length,
-            score: candidates.length - score,
-            xxx: (candidates.length - score) * (score / candidates.length),
-          };
-        })
-        .filter(({ possibility }) => possibility > 0);
-      const avg = weightedAverage(scores);
-      return {
-        word,
-        confidence: avg,
-        scores,
-        len: scores.length,
-      };
+  const availableWords = words.filter((word) => !selectedWords.has(word));
+  const chunks = chunk(
+    availableWords,
+    Math.ceil(availableWords.length / workerPool.length)
+  );
+  const scores = await Promise.all(
+    chunks.map(async (words, poolIndex) => {
+      const subResult = [];
+      for (const word of words) {
+        subResult.push({
+          word,
+          confidence: await workerPool[poolIndex].evaluate(word, {
+            history,
+            words: candidates,
+          }),
+        });
+      }
+      return subResult;
     })
-    .sort((a, b) => b.confidence - a.confidence);
-  debug(sorted.slice(0, 20).map(({ scores, ...rest }) => rest));
+  );
+  const sorted = scores.flat().sort((a, b) => b.confidence - a.confidence);
+  debug(sorted.slice(0, 20));
   return sorted[0];
 }
 
-function weightedAverage(
-  values: { score: number; possibility: number }[]
-): number {
-  const numer = values.reduce((sum, v) => sum + v.score * v.possibility, 0);
-  const denom = values.reduce((sum, v) => sum + v.possibility, 0);
-  return numer / denom;
+function chunk<T>(arr: T[], chunkSize = 1, cache: T[][] = []): T[][] {
+  const tmp = [...arr];
+  if (chunkSize <= 0) return cache;
+  while (tmp.length) cache.push(tmp.splice(0, chunkSize));
+  return cache;
 }
