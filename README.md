@@ -3,6 +3,8 @@
 An unofficial solver for [Wordle - A daily word game](https://www.powerlanguage.co.uk/wordle/).
 Currently, it can solve only easy mode.
 
+![screenshot](./docs/screenshot.gif)
+
 ## Installation
 
 1. Clone this repository
