@@ -11,17 +11,33 @@ type GameResult = {
   responses: Responses;
 };
 
+export interface CacheImpl {
+  get: (context: {
+    turn: number;
+    responses: Responses;
+  }) => Promise<GuessResult | null>;
+  set: (
+    guessed: GuessResult,
+    context: {
+      turn: number;
+      responses: Responses;
+    }
+  ) => Promise<void>;
+}
+
 export async function start({
   responses = [],
   maxTurns,
   words,
   workerPool,
+  cache,
   getResponse,
 }: {
   responses?: Responses;
   maxTurns: number;
   words: string[];
   workerPool: WorkerPool;
+  cache?: CacheImpl;
   getResponse: (state: {
     turn: number;
     guessed: GuessResult;
@@ -39,9 +55,13 @@ export async function start({
       );
     }
 
-    const spinner = ora({ text: "guessing...", discardStdin: false }).start();
-    const guessed = await guess(responses, words, workerPool);
-    spinner.stop().clear();
+    let guessed = cache ? await cache.get({ turn, responses }) : null;
+    if (!guessed) {
+      const spinner = ora({ text: "guessing...", discardStdin: false }).start();
+      guessed = await guess(responses, words, workerPool);
+      spinner.stop().clear();
+    }
+    await cache?.set(guessed, { turn, responses });
     debug(`guessed: ${guessed.word} (score:${guessed.confidence.toFixed(2)})`);
 
     const response = await getResponse({ turn, guessed });
