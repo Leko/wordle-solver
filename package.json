@@ -9,19 +9,18 @@
   "scripts": {
     "dev": "NODE_OPTIONS='--experimental-json-modules' node --loader ts-node/esm/transpile-only src/index.ts",
     "dev:emulate": "NODE_OPTIONS='--experimental-json-modules' node --loader ts-node/esm/transpile-only src/index.ts --emulate",
-    "test": "NODE_OPTIONS=--experimental-vm-modules jest"
+    "test": "vitest"
   },
   "repository": "Leko/wordle-solver",
   "author": "Leko <leko.noor@gmail.com>",
   "license": "MIT",
   "devDependencies": {
-    "@types/jest": "^27.4.0",
-    "jest": "^27.4.7",
+    "c8": "^7.11.0",
     "prettier": "^2.5.1",
     "regenerator-runtime": "^0.13.9",
-    "ts-jest": "^27.1.2",
     "ts-node": "^10.4.0",
-    "typescript": "^4.5.4"
+    "typescript": "^4.5.4",
+    "vitest": "^0.1.12"
   },
   "dependencies": {
     "arg": "^4.1.3",

@@ -14,9 +14,9 @@ type Response = {
 export type ResponseLine = Response[];
 export type Responses = ResponseLine[];
 
-const colorCorrect = (text: string) => chalk.black.bgGreen(text);
-const colorWrongSpot = (text: string) => chalk.black.bgYellow(text);
-const colorWrong = (text: string) => chalk.white.bgGrey(text);
+const colorCorrect = (text: string) => text;
+const colorWrongSpot = (text: string) => text;
+const colorWrong = (text: string) => text;
 
 async function question(
   rl: readline.Interface,
@@ -24,7 +24,7 @@ async function question(
   validate?: (answer: string) => void
 ): Promise<string> {
   return new Promise<string>((resolve, reject) => {
-    rl.question(chalk.dim(`> ${text}`), (answer) => {
+    rl.question(`> ${text}`, (answer) => {
       try {
         validate?.(answer);
         resolve(answer);
@@ -33,7 +33,7 @@ async function question(
       }
     });
   }).catch((e) => {
-    console.error(chalk.red((e as Error).message));
+    console.error((e as Error).message);
     return question(rl, text, validate);
   });
 }
@@ -66,11 +66,11 @@ function validateInput(t: string) {
 
 function validateResponse(t: string) {
   if (!t) {
-    throw new Error("input is required");
+    throw new Error("response is required");
   }
   if (!new RegExp(`^[x\\-.]{${WORD_LENGTH}}$`).test(t)) {
     throw new Error(
-      `input length must be ${WORD_LENGTH} and all chars must be one of 'x', '-' or '.'`
+      `response length must be ${WORD_LENGTH} and all chars must be one of 'x', '-' or '.'`
     );
   }
 }
