@@ -43,8 +43,7 @@ export async function start({
     guessed: GuessResult;
   }) => Promise<ResponseLine>;
 }): Promise<GameResult> {
-  let turn = responses.length + 1;
-  while (turn <= maxTurns) {
+  for (let turn = responses.length + 1; turn <= maxTurns; turn++) {
     debug(`turn ${turn}`);
     const candidates = words.filter(createFilter(responses));
     if (candidates.length <= 20) {
@@ -55,6 +54,7 @@ export async function start({
       );
     }
 
+    performance.mark("GUESS_START");
     let guessed = cache ? await cache.get({ turn, responses }) : null;
     if (!guessed) {
       const spinner = ora({ text: "guessing...", discardStdin: false }).start();
@@ -62,14 +62,21 @@ export async function start({
       spinner.stop().clear();
     }
     await cache?.set(guessed, { turn, responses });
-    debug(`guessed: ${guessed.word} (score:${guessed.confidence.toFixed(2)})`);
+    performance.mark("GUESS_END");
+    const spent = performance.measure("x", "GUESS_START", "GUESS_END").duration;
+    performance.clearMeasures();
+    performance.clearMarks();
+    debug(
+      `guessed: ${guessed.word} (score:${guessed.confidence.toFixed(
+        2
+      )}, time:${spent.toFixed(2)}ms)`
+    );
 
     const response = await getResponse({ turn, guessed });
     responses.push(response);
     if (response.every((res) => res.type === ResponseType.Exact)) {
       return { word: candidates[0], responses };
     }
-    turn++;
   }
   throw new Error("Failed to solve");
 }

@@ -12,8 +12,8 @@ export type WordCriteria = {
 };
 
 export function buildCriteria(responses: Responses): WordCriteria {
-  let contains = "";
-  let not = "";
+  let contains = new Set<string>();
+  let not = new Set<string>();
   let chars = [];
   for (let i = 0; i < WORD_LENGTH; i++) {
     chars[i] = {
@@ -25,24 +25,20 @@ export function buildCriteria(responses: Responses): WordCriteria {
         chars[i].exact = p[i].char;
         chars[i].not = new Set();
       } else if (p[i].type === "wrong") {
-        not += p[i].char;
+        not.add(p[i].char);
       } else if (p[i].type === "wrongSpot") {
         chars[i].not.add(p[i].char);
-        contains += p[i].char;
+        contains.add(p[i].char);
       }
     }
   }
   for (const c of chars) {
-    not = not.replace(c.exact!, "");
+    not.delete(c.exact!);
   }
   for (const c of contains) {
-    not = not.replace(c, "");
+    not.delete(c);
   }
-  return {
-    contains: new Set(contains),
-    not: new Set(not),
-    chars,
-  };
+  return { contains, not, chars };
 }
 
 export function createFilter(responses: Responses): (word: string) => boolean {
@@ -51,25 +47,24 @@ export function createFilter(responses: Responses): (word: string) => boolean {
   }
 
   const { contains, not, chars } = buildCriteria(responses);
+  const exactRegEx = new RegExp(
+    "^" + chars.reduce((str, c) => str + (c.exact ?? `.`), "") + "$"
+  );
   return function createdFilter(word: string): boolean {
-    for (const c of word) {
-      if (not.has(c)) {
-        return false;
-      }
+    if (!exactRegEx.test(word)) {
+      return false;
     }
     for (const c of contains) {
-      if (word.indexOf(c) === -1) {
+      if (!word.includes(c)) {
         return false;
       }
     }
-    return chars.every(({ exact, not }, i) => {
-      if (typeof exact === "string" && exact !== word[i]) {
+    for (let i = 0; i < chars.length; i++) {
+      const c = word[i];
+      if (not.has(c) || chars[i].not.has(c)) {
         return false;
       }
-      if (not.has(word[i])) {
-        return false;
-      }
-      return true;
-    });
+    }
+    return true;
   };
 }
