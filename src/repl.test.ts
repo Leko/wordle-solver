@@ -1,9 +1,8 @@
 import { EOL } from "node:os";
-import { createWriteStream } from "node:fs";
 import { createInterface } from "node:readline";
-import { Readable, Writable } from "node:stream";
+import { Readable } from "node:stream";
 import { describe, it, expect } from "vitest";
-import { parse, read } from "./repl";
+import { highlight, parse, read, ResponseType } from "./repl";
 
 async function* mockReadable(lines: string[]) {
   for (const line of lines) {
@@ -25,6 +24,21 @@ describe("repl", () => {
     });
     it("throws error if anything else", () => {
       expect(() => parse("a", "?")).toThrowError(/invalid response/);
+    });
+  });
+
+  describe("highlight", () => {
+    it("highlights Exact", () => {
+      const out = highlight([{ char: "a", type: ResponseType.Exact }]);
+      expect(typeof out).toEqual("string");
+    });
+    it("highlights WrongSpot", () => {
+      const out = highlight([{ char: "a", type: ResponseType.WrongSpot }]);
+      expect(typeof out).toEqual("string");
+    });
+    it("highlights Wrong", () => {
+      const out = highlight([{ char: "a", type: ResponseType.Wrong }]);
+      expect(typeof out).toEqual("string");
     });
   });
 

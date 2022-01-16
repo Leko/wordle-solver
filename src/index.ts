@@ -3,7 +3,6 @@ import fs from "node:fs/promises";
 import { cpus } from "node:os";
 import path from "node:path";
 import readline from "node:readline";
-import arg from "arg";
 import chalk from "chalk";
 import { releaseProxy } from "comlink";
 import { highlight, read, ResponseLine, ResponseType } from "./repl.js";
@@ -11,6 +10,7 @@ import { MAX_TURNS } from "./constants.js";
 import { CacheImpl, start } from "./game.js";
 import { baseLogger } from "./logger.js";
 import { GuessResult, prepareWorkerPool } from "./guess.js";
+import { parse } from "./args.js";
 
 const debugApp = baseLogger.extend("app");
 const debugCache = baseLogger.extend("cache");
@@ -40,7 +40,7 @@ async function repl() {
 
 async function emulate({ guessed }: { guessed: GuessResult }) {
   let word = guessed.word;
-  const res = emulateResponse(word, cliOptions["--emulate"]!);
+  const res = emulateResponse(word, cliOptions["emulate"]!);
   debugApp("input:", highlight(res));
   return res;
 }
@@ -73,16 +73,12 @@ const cacheClient = (wordsMD5Sum: string): CacheImpl => ({
   },
 });
 
-const cliOptions = arg({
-  "--emulate": String,
-  "--words": String,
-  "--cache": String,
-});
+const cliOptions = parse();
 const WORDS_PATH = path.join(
   process.cwd(),
-  cliOptions["--words"] ?? "words.json"
+  cliOptions["words"] ?? "words.json"
 );
-const CACHE_BASE = path.join(process.cwd(), cliOptions["--cache"] ?? ".cache");
+const CACHE_BASE = path.join(process.cwd(), cliOptions["cache"] ?? ".cache");
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -98,7 +94,7 @@ start({
   maxTurns: MAX_TURNS,
   words,
   workerPool,
-  getResponse: cliOptions["--emulate"] ? emulate : repl,
+  getResponse: cliOptions["emulate"] ? emulate : repl,
   cache: cacheClient(wordsMD5Sum),
 })
   .then((result) => {
